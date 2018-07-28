@@ -1,0 +1,9 @@
+fileFormatVersion: 2
+guid: 1cb18a683593cac4da5481c30ee9be25
+ShaderImporter:
+  defaultTextures:
+  - _WaterColor: {fileID: 2800000, guid: 291b0ecfdea2f2240a4adf8f1a0dec3a, type: 3}
+  - _BumpMap: {fileID: 2800000, guid: b89ed1387a34e134abeb6e1a63b8bfe2, type: 3}
+  - _ReflectionTex: {instanceID: 0}
+  - _RefractionTex: {instanceID: 0}
+  userData: 

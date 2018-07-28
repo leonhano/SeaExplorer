@@ -1,0 +1,831 @@
+﻿
+//////////////////////////////////////////////////////////////////////////
+//http://forum.unity3d.com/threads/using-custom-texture-atlas-and-separate-alpha-textures.264474/
+//Hi, yes you can do this but it will be work on your end (we don't intend to offer first party support for such a custom workflow). 
+//This will become much easier once we open source the UI but until that stage you can take a look at the Image class here:
+// https://gist.github.com/stramit/d2e1a94cdf3dbe08caac
+// and the graphic:
+// https://gist.github.com/stramit/1726f520d152895aed97
+// 
+// What you want to do is extend Graphic and much like image you want to generate vertices / UV's ect. For the default material we do:
+//////////////////////////////////////////////////////////////////////////
+
+using System;
+using System.Collections.Generic;
+using UnityEngine.Events;
+using UnityEngine.EventSystems;
+using UnityEngine.UI.CoroutineTween;
+
+namespace UnityEngine.UI
+{
+    /// <summary>
+    /// Base class for all UI components that should be derived from when creating new Graphic types.
+    /// </summary>
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(CanvasRenderer))]
+    [RequireComponent(typeof(RectTransform))]
+    [ExecuteInEditMode]
+    public abstract class GraphicUI
+        : UIBehaviour,
+        ICanvasElement
+    {
+        static protected Color32 s_White = Color.white;
+        static protected Material s_DefaultUI = null;
+        static protected Material s_DefaultText = null;
+        static protected Texture2D s_WhiteTexture = null;
+
+        /// <summary>
+        /// Default material used to draw everything if no explicit material was specified.
+        /// </summary>
+
+        static public Material defaultGraphicMaterial
+        {
+            get
+            {
+                if (s_DefaultUI == null)
+                {
+                    Shader shader = Shader.Find("UI/Default");
+                    s_DefaultUI = new Material(shader);
+                    s_DefaultUI.hideFlags = HideFlags.DontSave;
+                    s_DefaultUI.name = "Default UI Material";
+                }
+                return s_DefaultUI;
+            }
+        }
+
+        // Temporary vertex array pool used to avoid memory allocations as much as possible
+        private static readonly ObjectPool<List<UIVertex>> s_VboPool = new ObjectPool<List<UIVertex>>( (x => { if (x.Capacity < 300) x.Capacity = 300; }), (l => l.Clear()));
+
+        // Cached and saved values
+        [RenamedSerializedData("m_Mat")]
+        [SerializeField]
+        protected Material m_Material;
+
+        [SerializeField]
+        private Color m_Color = Color.white;
+        public Color color { get { return m_Color; } set { SetPropertyUtility.SetColor(ref m_Color, value, m_DirtyVertsCallback); } }
+
+        private float m_PixelsPerUnit = 1; // Don't serialize
+        public float pixelsPerUnit { get { return m_PixelsPerUnit; } set { SetPropertyUtility.SetStruct(ref m_PixelsPerUnit, value, m_DirtyAllCallback); } }
+
+        [NonSerialized]
+        private RectTransform m_RectTransform;
+        [NonSerialized]
+        private CanvasRenderer m_CanvasRender;
+        [NonSerialized]
+        private Canvas m_Canvas;
+
+        [NonSerialized]
+        private bool m_VertsDirty;
+        [NonSerialized]
+        private bool m_MaterialDirty;
+
+        [NonSerialized]
+        protected UnityAction m_DirtyAllCallback;
+        [NonSerialized]
+        protected UnityAction m_DirtyVertsCallback;
+        [NonSerialized]
+        protected UnityAction m_DirtyLayoutCallback;
+        [NonSerialized]
+        protected UnityAction m_DirtyMaterialCallback;
+
+        // Tween controls for the Graphic
+        //[NonSerialized]
+        //private readonly TweenRunner<ColorTween> m_ColorTweenRunner;
+
+        // Called by Unity prior to deserialization, 
+        // should not be called by users
+        protected GraphicUI()
+        {
+            /*
+            if (m_ColorTweenRunner == null)
+                m_ColorTweenRunner = new TweenRunner<ColorTween>();
+            m_ColorTweenRunner.Init(this);
+             * */
+
+            m_DirtyAllCallback = SetAllDirty;
+            m_DirtyVertsCallback = SetVerticesDirty;
+            m_DirtyLayoutCallback = SetLayoutDirty;
+            m_DirtyMaterialCallback = SetMaterialDirty;
+        }
+
+        public virtual void SetAllDirty()
+        {
+            SetLayoutDirty();
+            SetVerticesDirty();
+            SetMaterialDirty();
+        }
+
+        public virtual void SetLayoutDirty()
+        {
+            if (!IsActive())
+                return;
+
+            LayoutRebuilder.MarkLayoutForRebuild(rectTransform);
+        }
+
+        public virtual void SetVerticesDirty()
+        {
+            if (!IsActive())
+                return;
+
+            m_VertsDirty = true;
+            CanvasUpdateRegistry.RegisterCanvasElementForGraphicRebuild(this);
+        }
+
+        public virtual void SetMaterialDirty()
+        {
+            if (!IsActive())
+                return;
+
+            m_MaterialDirty = true;
+            CanvasUpdateRegistry.RegisterCanvasElementForGraphicRebuild(this);
+        }
+
+        protected override void OnRectTransformDimensionsChange()
+        {
+            if (gameObject.activeInHierarchy)
+            {
+                // prevent double dirtying...
+                if (CanvasUpdateRegistry.IsRebuildingLayout())
+                    SetVerticesDirty();
+                else
+                {
+                    SetVerticesDirty();
+                    SetLayoutDirty();
+                }
+            }
+        }
+
+        protected override void OnBeforeTransformParentChanged()
+        {
+            LayoutRebuilder.MarkLayoutForRebuild(rectTransform);
+        }
+
+        protected override void OnTransformParentChanged()
+        {
+            if (!IsActive())
+                return;
+
+            CacheCanvas();
+            SetAllDirty();
+        }
+
+        /// <summary>
+        /// Absolute depth of the graphic, used by rendering and events -- lowest to highest.
+        /// </summary>
+        public int depth { get { return canvasRenderer.absoluteDepth; } }
+
+        /// <summary>
+        /// Transform gets cached for speed.
+        /// </summary>
+        public RectTransform rectTransform
+        {
+            get { return m_RectTransform ?? (m_RectTransform = GetComponent<RectTransform>()); }
+        }
+
+        public Canvas canvas
+        {
+            get { return m_Canvas; }
+        }
+
+        private void CacheCanvas()
+        {
+            GraphicRegistry.UnregisterGraphicForCanvas(canvas, this);
+
+            m_Canvas = gameObject.GetComponentInParent<Canvas>();
+
+            GraphicRegistry.RegisterGraphicForCanvas(canvas, this);
+        }
+
+        /// <summary>
+        /// UI Renderer component.
+        /// </summary>
+        public CanvasRenderer canvasRenderer
+        {
+            get
+            {
+                if (m_CanvasRender == null)
+                    m_CanvasRender = GetComponent<CanvasRenderer>();
+                return m_CanvasRender;
+            }
+        }
+
+        public virtual Material defaultMaterial
+        {
+            get { return defaultGraphicMaterial; }
+        }
+
+        /// <summary>
+        /// Returns the material used by this Graphic.
+        /// </summary>
+        public virtual Material material
+        {
+            get
+            {
+                return (m_Material != null) ? m_Material : defaultMaterial;
+            }
+            set
+            {
+                if (m_Material == value)
+                    return;
+
+                m_Material = value;
+                SetMaterialDirty();
+            }
+        }
+
+        public virtual Material materialForRendering
+        {
+            get
+            {
+                var components = ComponentListPool.Get();
+                GetComponents(typeof(IMaterialModifier), components);
+
+                var currentMat = material;
+                for (var i = 0; i < components.Count; i++)
+                    currentMat = (components[i] as IMaterialModifier).GetModifiedMaterial(currentMat);
+                ComponentListPool.Release(components);
+                return currentMat;
+            }
+        }
+
+        /// <summary>
+        /// Returns the texture used to draw this Graphic.
+        /// </summary>
+        public virtual Texture mainTexture
+        {
+            get
+            {
+                return s_WhiteTexture;
+            }
+        }
+
+        #region Unity Lifetime calls
+        /// <summary>
+        /// Mark the Graphic and the canvas as having been changed.
+        /// </summary>
+        protected override void OnEnable()
+        {
+#if UNITY_EDITOR
+		CanvasRenderer.onRequestRebuild += OnRebuildRequested;
+#endif
+            if (s_WhiteTexture == null)
+                s_WhiteTexture = Texture2D.whiteTexture;
+
+            CacheCanvas();
+            SetAllDirty();
+
+            SendGraphicEnabledDisabled();
+        }
+
+        /// <summary>
+        /// Clear references.
+        /// </summary>
+        protected override void OnDisable()
+        {
+#if UNITY_EDITOR
+		CanvasRenderer.onRequestRebuild -= OnRebuildRequested;
+#endif
+            GraphicRegistry.UnregisterGraphicForCanvas(canvas, this);
+            CanvasUpdateRegistry.UnRegisterCanvasElementForRebuild(this);
+
+            if (canvasRenderer != null)
+                canvasRenderer.Clear();
+
+            LayoutRebuilder.MarkLayoutForRebuild(rectTransform);
+            SendGraphicEnabledDisabled();
+        }
+
+        private void SendGraphicEnabledDisabled()
+        {
+            var components = ComponentListPool.Get();
+            GetComponents(typeof(IGraphicEnabledDisabled), components);
+
+            for (int i = 0; i < components.Count; i++)
+                (components[i] as IGraphicEnabledDisabled).OnSiblingGraphicEnabledDisabled();
+
+            ComponentListPool.Release(components);
+        }
+        #endregion
+
+        public virtual void Rebuild(CanvasUpdate update)
+        {
+            switch (update)
+            {
+                case CanvasUpdate.PreRender:
+                    if (m_VertsDirty)
+                    {
+                        UpdateGeometry();
+                        m_VertsDirty = false;
+                    }
+                    if (m_MaterialDirty)
+                    {
+                        UpdateMaterial();
+                        m_MaterialDirty = false;
+                    }
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Update the renderer's vertices.
+        /// </summary>
+        protected virtual void UpdateGeometry()
+        {
+            var vbo = s_VboPool.Get();
+
+            if (rectTransform != null && rectTransform.rect.width >= 0 && rectTransform.rect.height >= 0)
+                OnFillVBO(vbo);
+
+
+            var components = ComponentListPool.Get();
+            GetComponents(typeof(IVertexModifier), components);
+
+            for (var i = 0; i < components.Count; i++)
+                (components[i] as IVertexModifier).ModifyVertices(vbo);
+            ComponentListPool.Release(components);
+
+            canvasRenderer.SetVertices(vbo);
+            s_VboPool.Release(vbo);
+        }
+
+        /// <summary>
+        /// Update the renderer's material.
+        /// </summary>
+        protected virtual void UpdateMaterial()
+        {
+            if (IsActive())
+                canvasRenderer.SetMaterial(materialForRendering, mainTexture);
+        }
+
+        /// <summary>
+        /// Fill the vertex buffer data.
+        /// </summary>
+        protected virtual void OnFillVBO(List<UIVertex> vbo)
+        {
+            var r = GetPixelAdjustedRect();
+            var v = new Vector4(r.x, r.y, r.x + r.width, r.y + r.height);
+
+            var vert = UIVertex.simpleVert;
+            vert.color = color;
+
+            vert.position = new Vector3(v.x, v.y);
+            vert.uv0 = new Vector2(0f, 0f);
+            vbo.Add(vert);
+
+            vert.position = new Vector3(v.x, v.w);
+            vert.uv0 = new Vector2(0f, 1f);
+            vbo.Add(vert);
+
+            vert.position = new Vector3(v.z, v.w);
+            vert.uv0 = new Vector2(1f, 1f);
+            vbo.Add(vert);
+
+            vert.position = new Vector3(v.z, v.y);
+            vert.uv0 = new Vector2(1f, 0f);
+            vbo.Add(vert);
+        }
+
+#if UNITY_EDITOR
+	protected virtual void OnRebuildRequested ()
+	{
+		SetAllDirty ();
+	}
+#endif
+
+        // Call from unity if animation properties have changed
+        protected override void OnDidApplyAnimationProperties()
+        {
+            SetAllDirty();
+        }
+
+        /// <summary>
+        /// Make the Graphic have the native size of its content.
+        /// </summary>
+        public virtual void SetNativeSize() { }
+        public virtual bool Raycast(Vector2 sp, Camera eventCamera)
+        {
+            var t = transform;
+            var components = ComponentListPool.Get();
+            while (t != null)
+            {
+                t.GetComponents(components);
+                for (var i = 0; i < components.Count; i++)
+                {
+                    var filter = components[i] as ICanvasRaycastFilter;
+
+                    if (filter == null)
+                        continue;
+
+                    if (!filter.IsRaycastLocationValid(sp, eventCamera))
+                    {
+                        ComponentListPool.Release(components);
+                        return false;
+                    }
+                }
+                t = t.parent;
+            }
+            ComponentListPool.Release(components);
+            return true;
+        }
+
+
+#if UNITY_EDITOR
+	protected override void OnValidate()
+	{
+		base.OnValidate ();
+		m_PixelsPerUnit = Mathf.Max (m_PixelsPerUnit, 0.01f);
+		SetAllDirty ();
+	}
+#endif
+
+        public Vector2 PixelAdjustPoint(Vector2 point)
+        {
+            if (!canvas || !canvas.pixelPerfect)
+                return point;
+
+            return RectTransformUtility.PixelAdjustPoint(point, transform, canvas);
+        }
+
+        public Rect GetPixelAdjustedRect()
+        {
+            if (!canvas || !canvas.pixelPerfect)
+                return rectTransform.rect;
+
+            return RectTransformUtility.PixelAdjustRect(rectTransform, canvas);
+        }
+
+        public void CrossFadeColor(Color targetColor, float duration, bool ignoreTimeScale, bool useAlpha)
+        {
+            CrossFadeColor(targetColor, duration, ignoreTimeScale, useAlpha, true);
+        }
+
+        private void CrossFadeColor(Color targetColor, float duration, bool ignoreTimeScale, bool useAlpha, bool useRGB)
+        {
+            if (canvasRenderer == null || (!useRGB && !useAlpha))
+                return;
+
+            Color currentColor = canvasRenderer.GetColor();
+            if (currentColor.Equals(targetColor))
+                return;
+
+            ColorTween.ColorTweenMode mode = (useRGB && useAlpha ?
+                ColorTween.ColorTweenMode.All :
+                (useRGB ? ColorTween.ColorTweenMode.RGB : ColorTween.ColorTweenMode.Alpha));
+
+            var colorTween = new ColorTween { duration = duration, startColor = canvasRenderer.GetColor(), targetColor = targetColor };
+            colorTween.AddOnChangedCallback(canvasRenderer.SetColor);
+            colorTween.ignoreTimeScale = ignoreTimeScale;
+            colorTween.tweenMode = mode;
+            //m_ColorTweenRunner.StartTween(colorTween);
+        }
+
+        static private Color CreateColorFromAlpha(float alpha)
+        {
+            var alphaColor = Color.black;
+            alphaColor.a = alpha;
+            return alphaColor;
+        }
+
+        public void CrossFadeAlpha(float alpha, float duration, bool ignoreTimeScale)
+        {
+            CrossFadeColor(CreateColorFromAlpha(alpha), duration, ignoreTimeScale, true, false);
+        }
+    }
+}
+
+public class ObjectPool<T>
+{
+
+    public delegate T CreatorDelegate();
+    public delegate void CleanerDelegate(T obj);
+
+    private CreatorDelegate mCreator;
+    private CleanerDelegate mCleaner;
+    private BetterList<T> mFreeList;
+
+    public ObjectPool(CreatorDelegate creator, CleanerDelegate cleaner)
+    {
+        mCreator = creator;
+        mCleaner = cleaner;
+        mFreeList = new BetterList<T>();
+    }
+
+    public T Get()
+    {
+        T newObject = default(T);
+        if (mFreeList.size > 0)
+        {
+            newObject = mFreeList.Pop();
+        }
+        else
+        {
+            newObject = mCreator();
+        }
+        return newObject;
+    }
+
+    public void Release(T obj)
+    {
+        if (obj != null)
+        {
+            mFreeList.Add(obj);
+        }
+    }
+
+    public void Clear()
+    {
+        if (mCleaner != null)
+        {
+            for (int i = 0; i < mFreeList.size; ++i)
+            {
+                mCleaner(mFreeList);
+            }
+            mFreeList.Clear();
+        }
+    }
+}
+
+
+/// <summary>
+/// This improved version of the System.Collections.Generic.List that doesn't release the buffer on Clear(), resulting in better performance and less garbage collection.
+/// </summary>
+
+public class BetterList<T>
+{
+#if UNITY_FLASH
+
+	List<T> mList = new List<T>();
+	
+	/// <summary>
+	/// Direct access to the buffer. Note that you should not use its 'Length' parameter, but instead use BetterList.size.
+	/// </summary>
+	
+	public T this[int i]
+	{
+		get { return mList[i]; }
+		set { mList[i] = value; }
+	}
+	
+	/// <summary>
+	/// Compatibility with the non-flash syntax.
+	/// </summary>
+	
+	public List<T> buffer { get { return mList; } }
+
+	/// <summary>
+	/// Direct access to the buffer's size. Note that it's only public for speed and efficiency. You shouldn't modify it.
+	/// </summary>
+
+	public int size { get { return mList.Count; } }
+
+	/// <summary>
+	/// For 'foreach' functionality.
+	/// </summary>
+
+	public IEnumerator<T> GetEnumerator () { return mList.GetEnumerator(); }
+
+	/// <summary>
+	/// Clear the array by resetting its size to zero. Note that the memory is not actually released.
+	/// </summary>
+
+	public void Clear () { mList.Clear(); }
+
+	/// <summary>
+	/// Clear the array and release the used memory.
+	/// </summary>
+
+	public void Release () { mList.Clear(); }
+
+	/// <summary>
+	/// Add the specified item to the end of the list.
+	/// </summary>
+
+	public void Add (T item) { mList.Add(item); }
+
+	/// <summary>
+	/// Insert an item at the specified index, pushing the entries back.
+	/// </summary>
+
+	public void Insert (int index, T item) { mList.Insert(index, item); }
+
+	/// <summary>
+	/// Returns 'true' if the specified item is within the list.
+	/// </summary>
+
+	public bool Contains (T item) { return mList.Contains(item); }
+
+	/// <summary>
+	/// Remove the specified item from the list. Note that RemoveAt() is faster and is advisable if you already know the index.
+	/// </summary>
+
+	public bool Remove (T item) { return mList.Remove(item); }
+
+	/// <summary>
+	/// Remove an item at the specified index.
+	/// </summary>
+
+	public void RemoveAt (int index) { mList.RemoveAt(index); }
+
+	/// <summary>
+	/// Mimic List's ToArray() functionality, except that in this case the list is resized to match the current size.
+	/// </summary>
+
+	public T[] ToArray () { return mList.ToArray(); }
+
+	/// <summary>
+	/// List.Sort equivalent.
+	/// </summary>
+
+	public void Sort (System.Comparison<T> comparer) { mList.Sort(comparer); }
+
+#else
+
+    /// <summary>
+    /// Direct access to the buffer. Note that you should not use its 'Length' parameter, but instead use BetterList.size.
+    /// </summary>
+
+    public T[] buffer;
+
+    /// <summary>
+    /// Direct access to the buffer's size. Note that it's only public for speed and efficiency. You shouldn't modify it.
+    /// </summary>
+
+    public int size = 0;
+
+    /// <summary>
+    /// For 'foreach' functionality.
+    /// </summary>
+
+    public IEnumerator<T> GetEnumerator()
+    {
+        if (buffer != null)
+        {
+            for (int i = 0; i < size; ++i)
+            {
+                yield return buffer[i];
+            }
+        }
+    }
+
+    /// <summary>
+    /// Convenience function. I recommend using .buffer instead.
+    /// </summary>
+
+    public T this[int i]
+    {
+        get { return buffer[i]; }
+        set { buffer[i] = value; }
+    }
+
+    /// <summary>
+    /// Helper function that expands the size of the array, maintaining the content.
+    /// </summary>
+
+    void AllocateMore()
+    {
+        T[] newList = (buffer != null) ? new T[Mathf.Max(buffer.Length << 1, 32)] : new T[32];
+        if (buffer != null && size > 0) buffer.CopyTo(newList, 0);
+        buffer = newList;
+    }
+
+    /// <summary>
+    /// Trim the unnecessary memory, resizing the buffer to be of 'Length' size.
+    /// Call this function only if you are sure that the buffer won't need to resize anytime soon.
+    /// </summary>
+
+    void Trim()
+    {
+        if (size > 0)
+        {
+            if (size < buffer.Length)
+            {
+                T[] newList = new T[size];
+                for (int i = 0; i < size; ++i) newList[i] = buffer[i];
+                buffer = newList;
+            }
+        }
+        else buffer = null;
+    }
+
+    /// <summary>
+    /// Clear the array by resetting its size to zero. Note that the memory is not actually released.
+    /// </summary>
+
+    public void Clear() { size = 0; }
+
+    /// <summary>
+    /// Clear the array and release the used memory.
+    /// </summary>
+
+    public void Release() { size = 0; buffer = null; }
+
+    /// <summary>
+    /// Add the specified item to the end of the list.
+    /// </summary>
+
+    public void Add(T item)
+    {
+        if (buffer == null || size == buffer.Length) AllocateMore();
+        buffer[size++] = item;
+    }
+
+    /// <summary>
+    /// Insert an item at the specified index, pushing the entries back.
+    /// </summary>
+
+    public void Insert(int index, T item)
+    {
+        if (buffer == null || size == buffer.Length) AllocateMore();
+
+        if (index < size)
+        {
+            for (int i = size; i > index; --i) buffer[i] = buffer[i - 1];
+            buffer[index] = item;
+            ++size;
+        }
+        else Add(item);
+    }
+
+    /// <summary>
+    /// Returns 'true' if the specified item is within the list.
+    /// </summary>
+
+    public bool Contains(T item)
+    {
+        if (buffer == null) return false;
+        for (int i = 0; i < size; ++i) if (buffer[i].Equals(item)) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Remove the specified item from the list. Note that RemoveAt() is faster and is advisable if you already know the index.
+    /// </summary>
+
+    public bool Remove(T item)
+    {
+        if (buffer != null)
+        {
+            EqualityComparer<T> comp = EqualityComparer<T>.Default;
+
+            for (int i = 0; i < size; ++i)
+            {
+                if (comp.Equals(buffer[i], item))
+                {
+                    --size;
+                    buffer[i] = default(T);
+                    for (int b = i; b < size; ++b) buffer[b] = buffer[b + 1];
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Remove an item at the specified index.
+    /// </summary>
+
+    public void RemoveAt(int index)
+    {
+        if (buffer != null && index < size)
+        {
+            --size;
+            buffer[index] = default(T);
+            for (int b = index; b < size; ++b) buffer[b] = buffer[b + 1];
+        }
+    }
+
+    /// <summary>
+    /// Mimic List's ToArray() functionality, except that in this case the list is resized to match the current size.
+    /// </summary>
+
+    public T[] ToArray() { Trim(); return buffer; }
+
+    /// <summary>
+    /// List.Sort equivalent.
+    /// </summary>
+
+    public void Sort(System.Comparison<T> comparer)
+    {
+        bool changed = true;
+
+        while (changed)
+        {
+            changed = false;
+
+            for (int i = 1; i < size; ++i)
+            {
+                if (comparer.Invoke(buffer[i - 1], buffer[i]) > 0)
+                {
+                    T temp = buffer[i];
+                    buffer[i] = buffer[i - 1];
+                    buffer[i - 1] = temp;
+                    changed = true;
+                }
+            }
+        }
+    }
+#endif
+}

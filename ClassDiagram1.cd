@@ -1,0 +1,107 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ClassDiagram MajorVersion="1" MinorVersion="1">
+  <Class Name="Captain">
+    <Position X="3.75" Y="3.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAQAQAAAACAAAAAgAAAAAAAAAAEAAAAAQAAAAAAAAAA=</HashCode>
+      <FileName>Assets\Code\Game\Entity\Captain.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Entity">
+    <Position X="0.75" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAQAAAAAACAAgAAAAAAAAAAAAAAIAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Assets\Code\Game\Entity\Entity.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" />
+  </Class>
+  <Class Name="HumanUnit">
+    <Position X="3.75" Y="1.25" Width="1.5" />
+    <Compartments>
+      <Compartment Name="Methods" Collapsed="true" />
+    </Compartments>
+    <TypeIdentifier>
+      <HashCode>AAQAAAACACAAAAAAQAAAAAAAAIAAAAAAQAAAAAAAAAA=</HashCode>
+      <FileName>Assets\Code\Game\Entity\HumanUnit.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="ShipUnit">
+    <Position X="6" Y="0.5" Width="1.75" />
+    <Compartments>
+      <Compartment Name="Methods" Collapsed="true" />
+      <Compartment Name="Properties" Collapsed="true" />
+    </Compartments>
+    <TypeIdentifier>
+      <HashCode>AUQAAEAQADAAAAAAUAAAIAQBAMAAAEQIAAgIABAAIAA=</HashCode>
+      <FileName>Assets\Code\Game\Entity\ShipUnit.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="SellDefine" Collapsed="true">
+    <Position X="2" Y="5.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAQAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAE=</HashCode>
+      <FileName>Assets\Code\Game\Entity\AttributionsDefine.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="LevelExp" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="2" Y="3.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAQAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Assets\Code\Game\Entity\AttributionsDefine.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="SkillAbility" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="2" Y="4.5" Width="1.5" />
+    <NestedTypes>
+      <Delegate Name="SkillAbility.SkillAbilityCallBack" Collapsed="true">
+        <TypeIdentifier>
+          <NewMemberFileName>Assets\Code\Game\Entity\AttributionsDefine.cs</NewMemberFileName>
+        </TypeIdentifier>
+      </Delegate>
+      <Delegate Name="SkillAbility.SkillAbilityCallBack&lt;T&gt;" Collapsed="true">
+        <TypeIdentifier>
+          <NewMemberFileName>Assets\Code\Game\Entity\AttributionsDefine.cs</NewMemberFileName>
+        </TypeIdentifier>
+      </Delegate>
+      <Enum Name="SkillAbility.SkillEnum" Collapsed="true">
+        <TypeIdentifier>
+          <NewMemberFileName>Assets\Code\Game\Entity\AttributionsDefine.cs</NewMemberFileName>
+        </TypeIdentifier>
+      </Enum>
+    </NestedTypes>
+    <TypeIdentifier>
+      <HashCode>gAAAAAACAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE=</HashCode>
+      <FileName>Assets\Code\Game\Entity\AttributionsDefine.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="SceneManager">
+    <Position X="10.75" Y="0.5" Width="1.5" />
+    <Compartments>
+      <Compartment Name="Methods" Collapsed="true" />
+    </Compartments>
+    <TypeIdentifier>
+      <HashCode>AAQAAAAIACAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Assets\Code\Game\SceneManager.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="GameScene">
+    <Position X="12.75" Y="0.5" Width="1.5" />
+    <Compartments>
+      <Compartment Name="Methods" Collapsed="true" />
+    </Compartments>
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAACAQAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Assets\Code\Game\SceneManager.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="PlayerShipBehavior">
+    <Position X="8.25" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAQAAAAAACAAAAAAAAIAQAAAAAAAAIEAQBAgBAAAAAA=</HashCode>
+      <FileName>Assets\Code\Game\PlayerShipBehavior.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Font Name="Segoe UI" Size="9" />
+</ClassDiagram>
