@@ -31,6 +31,6 @@
 
 试玩地址： https://leonhano.github.io/Build_SeaExplorer/
 
-Github: 
+Github: https://github.com/leonhano/SeaExplorer
 
-联系方式：
+联系方式：leonhano@gmail.com

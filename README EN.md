@@ -27,6 +27,6 @@ Material:
 
 Demo: https://leonhano.github.io/Build_SeaExplorer/
 
-Github:
+Github: https://github.com/leonhano/SeaExplorer
 
-Contact:
+Contact: leonhano@gmail.com
