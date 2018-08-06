@@ -33,6 +33,8 @@ public class PlayerShipBehavior : MonoBehaviour {
             InteractiveWithPort(colliderGO);
         else if (colliderGO.tag == TagDef.NPC)
             InteractiveWithNPC(colliderGO);
+        else if (colliderGO.tag == TagDef.Chest)
+            InteractiveWithChest(colliderGO);
         else
         {
             Debug.Log("Unknown behavior. collider = " + colliderGO.name);
@@ -54,6 +56,8 @@ public class PlayerShipBehavior : MonoBehaviour {
             FinishInteractiveWithPort(colliderGO);
         else if (colliderGO.tag == TagDef.NPC)
             FinishInteractiveWithNPC(colliderGO);
+        else if (colliderGO.tag == TagDef.Chest)
+            FinishInteractiveWithChest(colliderGO);
         else
         {
             Debug.Log("Unknown behavior. collider = " + colliderGO.name);
@@ -110,5 +114,30 @@ public class PlayerShipBehavior : MonoBehaviour {
         Debug.Log("FinishInteractiveWithNPC -->  NPC:" + npc.name);
 
         npc.SendMessage(Command.FinishInteractiveWithPlayer, this, SendMessageOptions.DontRequireReceiver);
+    }
+
+
+    /// <summary>
+    /// Interactive with NPC;
+    /// </summary>    
+    void InteractiveWithChest(GameObject chest)
+    {
+        bIsInteractiving = true;
+        Debug.Log("InteractiveWithChest -->  Chest:" + chest.name);
+
+        HighlightCollider(chest, true);
+
+        GameObject player = GameObject.FindGameObjectWithTag(TagDef.Player);
+        player.SendMessage(Command.BeginColliderWithChest, chest, SendMessageOptions.DontRequireReceiver);
+    }
+
+    void FinishInteractiveWithChest(GameObject chest)
+    {
+        bIsInteractiving = false;
+        HighlightCollider(chest, false);
+        Debug.Log("FinishInteractiveWithNPC -->  Chest:" + chest.name);
+
+        GameObject player = GameObject.FindGameObjectWithTag(TagDef.Player);
+        player.SendMessage(Command.FinishColliderWithChest, chest, SendMessageOptions.DontRequireReceiver);
     }
 }
