@@ -16,6 +16,8 @@ ff05dcdf90651c3d98a9cad3df5e471e UnityEngine.Timeline.dll:UnityEngine.Timeline.C
 31aaf521b3ef8699466676591ea0efd4 UnityEngine.Timeline.dll:UnityEngine.Timeline.GroupTrack
 31aaf521b3ef8699466676591ea0efd4 UnityEngine.Timeline.dll:UnityEngine.Timeline.PlayableTrack
 df374c01140c2d578bf70cbd60073d1d UnityEngine.Timeline.dll:UnityEngine.Timeline.TimelineAsset
+184bd65fdd8b082caca5d4e2d4d02c29 Assembly-CSharp.dll:.ActivateChest
+d081cb6add6ab96f2e0357ef1d7dcdd0 Assembly-CSharp.dll:TCM.TCMPrefabs
 df040649b734a1626cbebcccfb023437 Assembly-CSharp.dll:.RandomTerrainGenerator
 acf3b3dd94ef578e5f00ce3847e47e3c Assembly-CSharp.dll:.ShipUnit
 254300daff6d3482db0696a652314255 Assembly-UnityScript.dll:.ObliqueNear
@@ -132,6 +134,7 @@ c2275a8bfbb9f9942cad75ecdfded41d UnityEngine.HoloLens.dll:UnityEngine.XR.WSA.Spa
 05524b8f659e7bfe5756d1335fec24ba UnityEngine.Advertisements.dll:UnityEngine.Advertisements.CallbackExecutor
 05524b8f659e7bfe5756d1335fec24ba UnityEngine.Advertisements.dll:UnityEngine.Advertisements.Editor.Placeholder
 19a37a59d9318ce8dfc2cbf6c51fbd0f Assembly-CSharp.dll:.ShipBobble
+05524b8f659e7bfe5756d1335fec24ba Assembly-CSharp.dll:TCM.CameraControl
 05524b8f659e7bfe5756d1335fec24ba Assembly-CSharp.dll:.RotateTowardCamera
 6427fbe23490f69fcc3f133ab74c54e5 Assembly-UnityScript.dll:.tapcontrol
 05524b8f659e7bfe5756d1335fec24ba Assembly-CSharp.dll:.UIWindowBase
@@ -181,4 +184,5 @@ b2db42115a841efa19cc60f478783c78 Assembly-CSharp.dll:.ShipController
 5f388cbf6d312c4bd6f53fcc3a39766b Assembly-CSharp.dll:.MinimapCamera
 7fe26dfaf92467b9d0785484bfe2c5db Assembly-UnityScript.dll:.CameraRelativeControl
 b9b7b5d0e2332f9f5828f3d8d449ecc0 Assembly-CSharp.dll:.DoneCameraMovement
+babe426a01e75bf5294d871d338a88c3 Assembly-CSharp.dll:.SpawnChests
 4f544f381303bbed3b7b51b29e426d7a Assembly-UnityScript.dll:.RollABall

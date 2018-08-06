@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2017
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SeaExplorer_Bitbucket", "SeaExplorer_Bitbucket.csproj", "{15D565FD-4B99-6E14-050F-15C2B37ABABA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SeaExplorer_Bitbucket.Editor", "SeaExplorer_Bitbucket.Editor.csproj", "{98865C4F-F8C8-387D-77CA-0C47B0927E18}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{15D565FD-4B99-6E14-050F-15C2B37ABABA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{15D565FD-4B99-6E14-050F-15C2B37ABABA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{15D565FD-4B99-6E14-050F-15C2B37ABABA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{15D565FD-4B99-6E14-050F-15C2B37ABABA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{98865C4F-F8C8-387D-77CA-0C47B0927E18}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{98865C4F-F8C8-387D-77CA-0C47B0927E18}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{98865C4F-F8C8-387D-77CA-0C47B0927E18}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{98865C4F-F8C8-387D-77CA-0C47B0927E18}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
