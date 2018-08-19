@@ -1,12 +1,23 @@
 ﻿using System;
-using Neo.SmartContract.Framework;
-using Neo.SmartContract.Framework.Services.Neo;
-using Helper = Neo.SmartContract.Framework.Helper;
 using System.Text;
 
 using System.ComponentModel;
 using System.Numerics;
 using System.Collections.Generic;
+
+using Neunity.Tools;
+
+#if NEOSC
+using Neunity.Adapters.NEO;
+using Neo.SmartContract.Framework;
+using Neo.SmartContract.Framework.Services.Neo;
+using Neo.SmartContract.Framework.Services.System;
+using Helper = Neo.SmartContract.Framework.Helper;
+using System.Threading;
+#else
+using Neunity.Adapters.Unity;
+#endif
+
 
 
 namespace SeaExp
@@ -20,69 +31,77 @@ namespace SeaExp
 		}
 
 
-        
+
 		public const string keyGenesisHeight = "kGHeight";
-		public static BigInteger blocksPerDay = 4320;
+        public const int blocksPerDay = 4320;
+        //public const ulong PiemetalCallAmount = 10;
+
 		//某年的结束区块高度
 		public static BigInteger BlockheightOfYear(BigInteger year){
-			return blocksPerDay * year + Storage.Get(Storage.CurrentContext, keyGenesisHeight).AsBigInteger();
+            BigInteger bpd = blocksPerDay;
+            return bpd * year + Storage.Get(Storage.CurrentContext, keyGenesisHeight).AsBigInteger();
 		}
         
         
         //丕料类型定义
 		public static class Pimetal
         {
-			public static int Water = 0;
-			public static int Soil = 1;
-			public static int Wind = 2;
-			public static int Fire = 3;
+            public static readonly int Water = 0;
+            public static readonly int Soil = 1;
+            public static readonly int Wind = 2;
+            public static readonly int Fire = 3;
         }
 
         //海盗船特性类型定义
 		public static class Feature
         {
-			public static int Attack = 0;
-			public static int Defence = 1;
-			public static int Speed = 2;
-			public static int HP = 3;
-			public static int Recover = 4;
+            public static readonly int Attack = 0;
+            public static readonly int Defence = 1;
+            public static readonly int Speed = 2;
+            public static readonly int HP = 3;
+            public static readonly int Recover = 4;
         }
         
-		//
-		//owner帐号负责在每“年”开始前基于NASDAQ收盘价设定该年四种丕料的数量。如果没能在该年开始前成功调用此函数，则默认四丕料比例相同。
-		//将某量丕料散步到不同位置去(每两个字节为一个坐标值)
-        //四种丕料分四次call，节省GAS费用
+
 		public const string keyPimetal = "pim";
-		public static bool AllocatePimetal(BigInteger pimetalId, BigInteger amount){
+
+        //唯有特权帐户允许从NASDAQ收盘价格读取数据后更新新增Pimetal的布置
+        //在同一周期里对每种丕料pimetalId可以有invokeTime次调用或修改(如果错误的话)
+        public static byte[] AllocatePimetal(BigInteger pimetalId,BigInteger invokeTime){
 			if (Runtime.CheckWitness(Owner))
             {
                 BigInteger yearNext = GetYear() + 1;
 
-				byte[] data = new byte[0];
-                for (BigInteger i = 0; i < amount * 2; i++)
-                {    //随机X和Y轴，所以amountx2
-					data = data.Concat(RandomTwoBytes());
-                }
+                Transaction tx = (Transaction)ExecutionEngine.ScriptContainer;
+                byte[] thisData = tx.Hash;  //使用TxId生成随机数
 
-				Storage.Put(Storage.CurrentContext, keyPimetal + pimetalId, data);
+                int startIndex = (int)invokeTime * thisData.Length;
+                byte[] totalData = NuIO.GetStorageWithKeyPath(keyPimetal, Op.BigInt2String(pimetalId));
+                byte[] startData = Op.SubBytes(totalData, 0, startIndex);
+                byte[] endData = Op.SubBytes(totalData, startIndex + thisData.Length, totalData.Length - startIndex - thisData.Length);
+                byte[] newData = Op.JoinByteArray(startData, thisData, endData);
 
-                return true;
+                NuIO.SetStorageWithKeyPath(newData, keyPimetal, Op.BigInt2String(pimetalId) );
+
+                return NuTP.RespDataSuccess();
             }
             else
             {
-                return false;
+                return NuTP.RespDataWithCode(NuTP.SysDom,NuTP.Code.Unauthorized);
             }         
 		}
 
 
         
 		public static byte[] RandomTwoBytes(){
-			//TBD
-			return new byte[2] { 12, 31 };
+            Transaction tx = (Transaction)ExecutionEngine.ScriptContainer;
+            return tx.Hash.Range(0,2);
+
 		}
       
 		public const string keyPlayer = "player";
-		[Serializable]
+		
+
 		public class Player{
 			public byte[] address;
 			public BigInteger lvlAtk;
@@ -96,22 +115,54 @@ namespace SeaExp
 			public BigInteger wind;
 			public BigInteger fire;
 		}
-        
+
+        public static Player Bytes2Player(byte[] ba){
+            return new Player
+            {
+                address = ba.SplitTbl(0),
+                lvlAtk = ba.SplitTblInt(1),
+                lvlDef = ba.SplitTblInt(2),
+                lvlSpd = ba.SplitTblInt(3),
+                lvlHP = ba.SplitTblInt(4),
+                lvlRev = ba.SplitTblInt(5),
+                lastUpdateYear = ba.SplitTblInt(6),
+                water = ba.SplitTblInt(7),
+                soil = ba.SplitTblInt(8),
+                wind = ba.SplitTblInt(9),
+                fire = ba.SplitTblInt(10)
+            };
+        }
+
+        public static byte[] Player2Bytes(Player player){
+            return NuSD.Seg(player.address)
+                       .AddSegInt(player.lvlAtk)
+                       .AddSegInt(player.lvlDef)
+                       .AddSegInt(player.lvlSpd)
+                       .AddSegInt(player.lvlHP)
+                       .AddSegInt(player.lvlRev)
+                       .AddSegInt(player.lastUpdateYear)
+                       .AddSegInt(player.water)
+                       .AddSegInt(player.soil)
+                       .AddSegInt(player.wind)
+                       .AddSegInt(player.fire);
+        }
 
 		public static Player FindPlayer(byte[] addr){
-			return (Player)(Storage.Get(Storage.CurrentContext, keyPlayer + addr)).Deserialize();
+            byte[] data = NuIO.GetStorageWithKeyPath(keyPlayer,Op.Bytes2String(addr));
+            return Bytes2Player(data);
 		}
 
-        //玩家在前端真正保持持有丕料3分钟后，客户端（或服务器）才会调用此函数收集该丕料
-		public static bool Collect(byte[] invoker, byte[] location){
-			byte[] invalidLoc = { 0, 0, 0, 0 };
-			if (location == invalidLoc) return false;
+
+        public static byte[] Collect(byte[] invoker, BigInteger type, byte[] location){
+            byte[] invalidLoc = new byte[4]{ 0, 0, 0, 0 };
+            if (location == invalidLoc) return NuTP.RespDataWithCode(NuTP.SysDom,NuTP.Code.BadRequest);
 
 
-			BigInteger typePimetal = -1;
+			int typePimetal = 99;
         
-			for (BigInteger i = 0; i < 3;i++){
-				byte[] locs = Storage.Get(Storage.CurrentContext, keyPimetal + i);
+			for (int i = 0; i < 3;i++){
+                byte[] locs = NuIO.GetStorageWithKeyPath(keyPimetal,Op.BigInt2String(type));
+				//byte[] locs = Storage.Get(Storage.CurrentContext, keyPimetal + i);
 				for (int j = 0; j < locs.Length; j+=4){
 					if(locs[j] == location[0] && locs[j+1] == location[1] &&
 					   locs[j+2] == location[2] && locs[j + 3] == location[3]){
@@ -121,45 +172,45 @@ namespace SeaExp
 						for (int k = 0; k < locs.Length; k++ ){
 							if(k<j || k>= j+3){
 								byte[] newVal = new byte[1] { locs[k] };
-								newData = newData.Concat(newVal);
+                                newData = Op.JoinTwoByteArray(newData, newVal);
+								//newData = newData.Concat(newVal);
 							}
 							else if (k<j+3){
 								byte[] newVal = new byte[1] { 0 };
-								newData = newData.Concat(newVal);
+                                newData = Op.JoinTwoByteArray(newData, newVal);
 							}
 
 						}
-						Storage.Put(Storage.CurrentContext, keyPimetal + typePimetal, newData);
-						                  
+                        NuIO.SetStorageWithKeyPath(newData,keyPimetal, Op.BigInt2String(typePimetal));						                  
 						break;
 					}
 				}
 			}
 
 			Player player = FindPlayer(invoker);
-			if (typePimetal == -1) return false;
+            if (typePimetal == 99) return NuTP.RespDataWithCode(NuTP.SysDom,NuTP.Code.BadRequest);    //非法输入值
 			if( typePimetal == Pimetal.Water){
-				player.water++;
+				player.water+=1;
 			}
 			else if (typePimetal == Pimetal.Soil)
             {
-				player.soil++;
+                player.soil+= 1;
             }
 			else if (typePimetal == Pimetal.Wind)
             {
-				player.wind++;
+                player.wind += 1;
             }
 			else if (typePimetal == Pimetal.Fire)
             {
-				player.fire++;
+                player.fire+= 1;
             }
 
-			byte[] newPlayerData = player.Serialize();
-			Storage.Put(Storage.CurrentContext, keyPimetal + typePimetal, newPlayerData);
-			return true;
+            byte[] newPlayerData = Player2Bytes(player);
+            NuIO.SetStorageWithKeyPath(newPlayerData, keyPimetal, Op.BigInt2String(typePimetal));
+            return NuTP.RespDataSuccess();
 		}
         
-		public static bool Upgrade(byte[] invoker, BigInteger feature){
+        public static byte[] Upgrade(byte[] invoker, BigInteger feature){
 			Player player = FindPlayer(invoker);
 			BigInteger lvl = -1;
 			if (feature == 0) lvl = player.lvlAtk;
@@ -167,8 +218,8 @@ namespace SeaExp
 			else if (feature == 2) lvl = player.lvlSpd;
 			else if (feature == 3) lvl = player.lvlHP;
 			else if (feature == 4) lvl = player.lvlRev;
-
-			BigInteger[] pimetals = AmountUpgrade(feature, lvl + 1);
+            int f = Op.BigInt2Int(feature);
+			BigInteger[] pimetals = AmountUpgrade(f, lvl + 1);
 			if( player.water >= pimetals[0] && player.soil >= pimetals[1] &&
 			   player.wind >= pimetals[2] && player.fire >= pimetals[3]){
 				player.water -= pimetals[0];
@@ -176,15 +227,15 @@ namespace SeaExp
 				player.wind -= pimetals[2];
 				player.fire -= pimetals[3];
 
-				if (feature == 0) player.lvlAtk ++;
-                else if (feature == 1) player.lvlDef++;
-                else if (feature == 2) player.lvlSpd ++;
-                else if (feature == 3) player.lvlHP ++;
-                else if (feature == 4) player.lvlRev ++;
-				return true;
+				if (feature == 0) player.lvlAtk += 1;
+                else if (feature == 1) player.lvlDef+= 1;
+                else if (feature == 2) player.lvlSpd += 1;
+                else if (feature == 3) player.lvlHP += 1;
+                else if (feature == 4) player.lvlRev += 1;
+                return NuTP.RespDataSuccess();
 			}
 			else{
-				return false;
+                return NuTP.RespDataWithCode(NuTP.SysDom,NuTP.Code.BadRequest);
 			}
 		}
         
@@ -197,7 +248,7 @@ namespace SeaExp
 		}
 
         //升级所需各种元素的量
-		public static BigInteger[] AmountUpgrade(BigInteger feature, BigInteger level){
+		public static BigInteger[] AmountUpgrade(int feature, BigInteger level){
 			BigInteger[] amounts = new BigInteger[4];
 			if(feature == Feature.Attack){
 				amounts[Pimetal.Water] = level * 0;
@@ -239,10 +290,12 @@ namespace SeaExp
 
 
         //创世初始化
-		public static bool Genesis(){
+        public static byte[] Genesis(){
 			if (Runtime.CheckWitness(Owner)){
-				//年份实际从1开始。第一区块无丕料
-				Storage.Put(Storage.CurrentContext, keyYear, 0);  //年份为0
+                //年份实际从1开始。第一区块无丕料
+                byte[] startYear = new byte[1]{ 1 };
+                NuIO.SetStorageWithKey(keyYear,startYear );
+				//Storage.Put(Storage.CurrentContext, keyYear, 0);  //年份为0
 
 				BigInteger water = 100;
 				BigInteger soil = 100;
@@ -253,10 +306,10 @@ namespace SeaExp
 				AllocatePimetal(Pimetal.Soil, soil);
 				AllocatePimetal(Pimetal.Wind, wind);
 				AllocatePimetal(Pimetal.Fire, fire);
-				return true;
+                return NuTP.RespDataSuccess();
 			}
 			else{
-				return false;
+                return NuTP.RespDataWithCode(NuTP.SysDom,NuTP.Code.Unauthorized);
 			}
 		}
 
@@ -281,11 +334,12 @@ namespace SeaExp
 
             if (operation == "collect")
             {
-				//BigInteger numCards = (BigInteger)args[0] * (BigInteger)args[1];
-				return Collect((byte[])args[0], (byte[])args[1]);
+                return Collect((byte[])args[0], (BigInteger)args[1],(byte[])args[2]);
             }
-            return false;
+            return NuTP.RespDataWithCode(NuTP.SysDom,NuTP.Code.NotFound);
         }
+
+
     }
 
 }
