@@ -6,13 +6,13 @@
 
 《区块海盗船(Pirateo)》是一个基于NEO区块链的RPG游戏。玩家扮演海盗船在无边界的加勒比世界探险。核心特性包括：
 
-1. **读取每日股票行情**来影响智能合约决定世界里资源分配。
+1. **读取纳斯达克每日股票行情**来影响智能合约决定世界里资源分配。
 
-2. 核心逻辑实现在NEO区块链上。
+2. 核心逻辑实现在NEO区块链上([合约源码地址](https://github.com/leonhano/SeaExplorer/tree/master/Contract/SeaExp),(感谢NEL及norchain.io提供技术帮助))。
 
-3. 客户端基于Unity，支持Web和手机客户端。
+3. 客户端基于Unity (及[Neunity](https://github.com/norchain/Neunity)框架)，支持Web和手机客户端。
 
-   
+    
 
 ![screenshot](artwork/screenshot.png)
 
@@ -31,6 +31,6 @@
 
 试玩地址： https://leonhano.github.io/Build_SeaExplorer/
 
-Github: https://github.com/leonhano/SeaExplorer
+Github: 
 
-联系方式：leonhano@gmail.com
+联系方式：
